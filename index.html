@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Equipment Inventory Manager</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+</head>
+<body>
+    <!-- Landing Page -->
+    <div id="landingPage" class="landing-page active">
+        <div class="landing-container">
+            <div class="landing-header">
+                <h1>📋 Equipment Inventory Manager</h1>
+                <p class="landing-subtitle">Manage hospital equipment and patient slings with ease</p>
+            </div>
+
+            <div class="landing-cards">
+                <div class="landing-card" id="createNewBtn" style="cursor: pointer;">
+                    <div class="card-icon">➕</div>
+                    <h2>Create New List</h2>
+                    <p>Start a fresh inventory from scratch</p>
+                    <button class="landing-btn btn-primary" type="button">Get Started</button>
+                </div>
+
+                <div class="landing-card" id="viewExistingBtn" style="cursor: pointer;">
+                    <div class="card-icon">📊</div>
+                    <h2>View Existing</h2>
+                    <p>Access your saved inventory data</p>
+                    <button class="landing-btn btn-success" type="button">Open List</button>
+                </div>
+
+                <div class="landing-card" id="importDataBtn" style="cursor: pointer;">
+                    <div class="card-icon">📤</div>
+                    <h2>Import Data</h2>
+                    <p>Upload Excel or CSV file</p>
+                    <button class="landing-btn btn-primary" type="button">Import File</button>
+                    <input type="file" id="landingImportFile" accept=".xlsx,.xls,.csv,.numbers" style="display:none;">
+                </div>
+            </div>
+
+            <!-- Saved Lists Section -->
+            <div id="savedListsSection" style="display:none; margin-top: 40px;">
+                <div style="background: white; padding: 30px; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+                    <h2 style="color: var(--text-color); margin-bottom: 20px;">📋 Your Saved Lists</h2>
+                    <div id="savedListsContainer"></div>
+                    <button id="backToLandingBtn" class="btn btn-secondary" style="margin-top: 20px;">← Back</button>
+                </div>
+            </div>
+
+            <div class="landing-footer">
+                <p>✨ Features: Step-by-step data entry • Photo recognition • Custom columns • Search & filter • Pivot tables • Export to Excel/CSV</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div class="container" id="mainApp" style="display:none;">
+        <header>
+            <div class="header-content">
+                <h1>📋 Equipment Inventory Manager</h1>
+                <div class="location-selector">
+                    <label>Location/Title:</label>
+                    <input type="text" id="locationTitle" placeholder="e.g., UCLH NOVEMBER 2025 - EGA" value="UCLH NOVEMBER 2025 - EGA">
+                </div>
+                <button class="btn btn-secondary" id="returnHomeBtn">🏠 Home</button>
+            </div>
+        </header>
+
+        <nav class="main-nav">
+            <button class="nav-btn active" data-view="list">
+                <span class="icon">📊</span> View All
+            </button>
+            <button class="nav-btn" data-view="add">
+                <span class="icon">➕</span> Add New Item
+            </button>
+            <button class="nav-btn" data-view="pivot">
+                <span class="icon">📈</span> Pivot Table
+            </button>
+            <button class="nav-btn" data-view="columns">
+                <span class="icon">⚙️</span> Manage Columns
+            </button>
+        </nav>
+
+        <!-- List View -->
+        <div id="listView" class="view active">
+            <div class="controls-bar">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Search serial, equipment, location...">
+                    <button id="searchBtn" class="btn">🔍 Search</button>
+                    <button id="clearSearch" class="btn btn-secondary" style="display:none;">✕ Clear</button>
+                </div>
+                <div class="action-buttons">
+                    <button id="importBtn" class="btn btn-primary">📤 Import Excel/CSV</button>
+                    <input type="file" id="importFile" accept=".xlsx,.xls,.csv,.numbers" style="display:none;">
+                    <button id="exportCSV" class="btn btn-success">📥 Export CSV</button>
+                    <button id="exportExcel" class="btn btn-success">📊 Export Excel</button>
+                </div>
+            </div>
+
+            <div class="stats-bar">
+                <div class="stat-card">
+                    <span class="stat-label">Total Items:</span>
+                    <span class="stat-value" id="totalItems">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Locations:</span>
+                    <span class="stat-value" id="totalLocations">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Equipment Types:</span>
+                    <span class="stat-value" id="totalEquipment">0</span>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <div id="tableWrapper"></div>
+            </div>
+        </div>
+
+        <!-- Add/Edit View -->
+        <div id="addView" class="view">
+            <div class="form-container">
+                <h2 id="formTitle">Add New Item</h2>
+                <p class="form-subtitle">Fill in the details step by step</p>
+                
+                <form id="itemForm">
+                    <input type="hidden" id="editIndex" value="">
+                    
+                    <div class="form-step active" data-step="1">
+                        <h3>Step 1: Basic Information</h3>
+                        <div class="form-group">
+                            <label for="serialNumber">Serial Number *</label>
+                            <input type="text" id="serialNumber" required placeholder="e.g., 300361201">
+                            <small>Unique identifier for the equipment</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="equipment">Equipment Type *</label>
+                            <input type="text" id="equipment" required placeholder="e.g., MAXIMOVE 3" list="equipmentList">
+                            <datalist id="equipmentList">
+                                <option value="MAXIMOVE 3">
+                                <option value="SARA STEDY">
+                                <option value="PATIENT HOIST">
+                                <option value="CEILING HOIST">
+                            </datalist>
+                            <small>Type of equipment</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="location">Location *</label>
+                            <input type="text" id="location" required placeholder="e.g., T12 NORTH" list="locationList">
+                            <datalist id="locationList"></datalist>
+                            <small>Ward or area where equipment is located</small>
+                        </div>
+                    </div>
+
+                    <div class="form-step" data-step="2">
+                        <h3>Step 2: Specifications</h3>
+                        <div class="form-group">
+                            <label for="swl">S.W.L (Safe Working Load)</label>
+                            <input type="text" id="swl" placeholder="e.g., 227 KG">
+                            <small>Maximum safe weight capacity</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="yom">Y.O.M (Year of Manufacture)</label>
+                            <input type="number" id="yom" placeholder="e.g., 2020" min="1990" max="2030">
+                            <small>Year the equipment was manufactured</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="condition">Condition *</label>
+                            <select id="condition" required>
+                                <option value="">Select condition...</option>
+                                <option value="EXCELLENT">Excellent</option>
+                                <option value="GOOD">Good</option>
+                                <option value="FAIR">Fair</option>
+                                <option value="POOR">Poor</option>
+                            </select>
+                            <small>Current condition of the equipment</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="useHours">Use (Hours)</label>
+                            <input type="text" id="useHours" placeholder="e.g., 9.5 HRS">
+                            <small>Total usage hours</small>
+                        </div>
+                    </div>
+
+                    <div class="form-step" data-step="3">
+                        <h3>Step 3: Service & Maintenance</h3>
+                        <div class="form-group">
+                            <label for="lastService">Last Service Date</label>
+                            <input type="date" id="lastService">
+                            <small>Date of last maintenance service</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="thisService">This Service Date</label>
+                            <input type="date" id="thisService">
+                            <small>Current service date</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="time">Time</label>
+                            <input type="text" id="time" placeholder="Service duration">
+                            <small>Time taken for service</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="pass">Pass</label>
+                            <select id="pass">
+                                <option value="">Select...</option>
+                                <option value="✔️">✔️ Pass</option>
+                                <option value="❌">❌ Fail</option>
+                                <option value="⚠️">⚠️ Warning</option>
+                            </select>
+                            <small>Service inspection result</small>
+                        </div>
+                    </div>
+
+                    <div class="form-step" data-step="4">
+                        <h3>Step 4: Additional Information & Photo</h3>
+                        <div class="form-group">
+                            <label for="strapKitDue">Strap Kit Due</label>
+                            <input type="text" id="strapKitDue" placeholder="e.g., NOV 25">
+                            <small>When strap kit replacement is due</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="notes">Notes</label>
+                            <textarea id="notes" rows="3" placeholder="Additional notes or observations..."></textarea>
+                            <small>Any additional information</small>
+                        </div>
+                        
+                        <!-- Photo Capture Section - Collapsible -->
+                        <div class="form-group">
+                            <details class="photo-capture-details">
+                                <summary style="cursor: pointer; font-weight: 600; color: var(--primary-color); padding: 10px; background: var(--bg-color); border-radius: 6px;">
+                                    📷 Extract Info from Photo (Optional - Click to expand)
+                                </summary>
+                                <div class="photo-section" style="margin-top: 15px;">
+                                    <div class="photo-capture-buttons">
+                                        <button type="button" class="btn btn-primary" id="openCameraBtn">📸 Take Photo</button>
+                                        <button type="button" class="btn btn-secondary" id="uploadPhotoBtn">🖼️ Upload Photo</button>
+                                        <input type="file" id="photoUpload" accept="image/*" capture="environment" style="display:none;">
+                                    </div>
+                                    <div id="photoPreview"></div>
+                                    <small>Take or upload a photo of equipment labels to auto-extract serial numbers and text</small>
+                                </div>
+                            </details>
+                        </div>
+
+                        <!-- Custom Fields Section -->
+                        <div id="customFieldsContainer"></div>
+                    </div>
+
+                    <div class="form-navigation">
+                        <button type="button" id="prevBtn" class="btn btn-secondary" style="display:none;">← Previous</button>
+                        <button type="button" id="nextBtn" class="btn btn-primary">Next →</button>
+                        <button type="submit" id="submitBtn" class="btn btn-success" style="display:none;">💾 Save Item</button>
+                        <button type="button" id="cancelBtn" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Pivot Table View -->
+        <div id="pivotView" class="view">
+            <div class="pivot-controls">
+                <div class="form-group">
+                    <label>Group By:</label>
+                    <select id="pivotGroupBy">
+                        <option value="location">Location</option>
+                        <option value="equipment">Equipment Type</option>
+                        <option value="condition">Condition</option>
+                        <option value="pass">Pass Status</option>
+                    </select>
+                </div>
+                <button id="refreshPivot" class="btn btn-primary">🔄 Refresh</button>
+                <button id="exportPivotCSV" class="btn btn-success">📥 Export Pivot CSV</button>
+            </div>
+            <div id="pivotTableContainer" class="table-container"></div>
+        </div>
+
+        <!-- Column Management View -->
+        <div id="columnsView" class="view">
+            <div class="form-container">
+                <h2>⚙️ Manage Custom Columns</h2>
+                <p class="form-subtitle">Add or remove custom columns for your inventory</p>
+
+                <div class="column-list">
+                    <h3>Default Columns</h3>
+                    <div class="default-columns">
+                        <span class="column-tag">Serial Number</span>
+                        <span class="column-tag">Equipment</span>
+                        <span class="column-tag">Location</span>
+                        <span class="column-tag">S.W.L</span>
+                        <span class="column-tag">Y.O.M</span>
+                        <span class="column-tag">Condition</span>
+                        <span class="column-tag">Use (Hours)</span>
+                        <span class="column-tag">Last Service</span>
+                        <span class="column-tag">This Service</span>
+                        <span class="column-tag">Time</span>
+                        <span class="column-tag">Pass</span>
+                        <span class="column-tag">Strap Kit Due</span>
+                        <span class="column-tag">Notes</span>
+                    </div>
+                </div>
+
+                <div class="add-column-section">
+                    <h3>Custom Columns</h3>
+                    <div id="customColumnsList" class="custom-columns-list"></div>
+                    
+                    <div class="add-column-form">
+                        <input type="text" id="newColumnName" placeholder="Enter column name (e.g., Battery Serial, Warranty Date)" class="form-control">
+                        <button id="addColumnBtn" class="btn btn-success">➕ Add Column</button>
+                    </div>
+                </div>
+
+                <div class="form-navigation">
+                    <button id="backToListBtn" class="btn btn-primary">← Back to List</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Camera Modal -->
+    <div id="cameraModal" class="modal">
+        <div class="modal-content">
+            <span class="close" id="closeCameraBtn">&times;</span>
+            <h2>📸 Capture Equipment Photo</h2>
+            <video id="cameraVideo" autoplay playsinline></video>
+            <canvas id="cameraCanvas" style="display:none;"></canvas>
+            <div class="camera-controls">
+                <button id="capturePhotoBtn" class="btn btn-success">📸 Capture</button>
+                <button id="cancelCameraBtn" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
