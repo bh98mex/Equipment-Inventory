@@ -817,6 +817,12 @@ class InventoryManager {
                                     let value = item[key] || '';
                                     if (key === 'lastService' || key === 'thisService') {
                                         value = this.formatDate(value);
+                                    } else if (key === 'yom' && value) {
+                                        // Display just the year from the date
+                                        const match = value.match(/^(\d{4})/);
+                                        if (match) {
+                                            value = match[1];
+                                        }
                                     }
                                     return `<td>${this.escapeHtml(value)}</td>`;
                                 }).join('')}
@@ -1057,6 +1063,18 @@ class InventoryManager {
                         console.log('Converted date:', row[columnIndex], '→', value);
                     }
                     
+                    // Convert Y.O.M - if it's just a year (e.g., "2020"), convert to Jan 1st of that year
+                    if (field === 'yom' && value) {
+                        if (/^\d{4}$/.test(value)) {
+                            // Just a year like "2020"
+                            value = `${value}-01-01`;
+                            console.log('Converted YOM year to date:', row[columnIndex], '→', value);
+                        } else {
+                            // Try to parse as date
+                            value = this.convertToDateFormat(value);
+                        }
+                    }
+                    
                     // Convert pass/fail symbols
                     if (field === 'pass' && value) {
                         if (value.includes('✓') || value.includes('✔') || value.toLowerCase() === 'pass') {
@@ -1139,7 +1157,7 @@ class InventoryManager {
             else if (headerLower.includes('swl') || headerLower.includes('s.w.l') || headerLower.includes('safe working load') || headerLower.includes('weight')) {
                 mapping.swl = index;
             }
-            // Y.O.M variations
+            // Y.O.M variations - can be year or date
             else if (headerLower.includes('yom') || headerLower.includes('y.o.m') || headerLower.includes('year') || headerLower.includes('manufacture')) {
                 mapping.yom = index;
             }

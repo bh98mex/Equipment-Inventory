@@ -880,3 +880,19 @@ tbody tr:hover {
     font-size: 13px;
 }
 
+
+/* Credits Footer */
+.credits-footer {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255,255,255,0.2);
+    font-size: 14px;
+}
+
+.credits-footer p {
+    margin: 5px 0;
+}
+
+.credits-footer a:hover {
+    text-decoration: underline !important;
+}
