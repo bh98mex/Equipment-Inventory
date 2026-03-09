@@ -1414,7 +1414,9 @@ class InventoryManager {
             csv += row.join(',') + '\n';
         });
 
-        this.downloadFile(csv, 'inventory.csv', 'text/csv;charset=utf-8;');
+        // Create filename from list name (sanitize for file system)
+        const safeFileName = (locationTitle || 'inventory').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        this.downloadFile(csv, `${safeFileName}.csv`, 'text/csv;charset=utf-8;');
     }
 
     exportExcel() {
@@ -1423,7 +1425,7 @@ class InventoryManager {
             return;
         }
 
-        const locationTitle = document.getElementById('locationTitle').value;
+        const locationTitle = document.getElementById('locationTitle').value || this.currentListName || 'Inventory';
         const allColumns = [...this.defaultColumns, ...this.customColumns.map(col => col.key)];
         const headers = allColumns.map(key => {
             const customCol = this.customColumns.find(col => col.key === key);
@@ -1446,6 +1448,14 @@ class InventoryManager {
                     }
                 }
                 
+                // Display YOM as just year in exports
+                if (key === 'yom' && value) {
+                    const match = value.match(/^(\d{4})/);
+                    if (match) {
+                        return match[1];
+                    }
+                }
+                
                 return value;
             })
         );
@@ -1460,13 +1470,52 @@ class InventoryManager {
         // Set row heights
         ws['!rows'] = [];
         ws['!rows'][0] = { hpt: 24 }; // Title row height
-        ws['!rows'][1] = { hpt: 18 }; // Header row height
+        ws['!rows'][1] = { hpt: 20 }; // Header row height
+        
+        // Style the title row (Row 1) - BOLD and BLUE
+        const titleCell = 'A1';
+        if (!ws[titleCell].s) ws[titleCell].s = {};
+        ws[titleCell].s = {
+            font: { 
+                bold: true, 
+                sz: 16,
+                color: { rgb: "1F4E78" } // Dark blue color
+            },
+            alignment: { 
+                horizontal: 'left',
+                vertical: 'center'
+            }
+        };
+        
+        // Style the header row (Row 2) - BOLD and DARK GREY background
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+            const cellAddress = XLSX.utils.encode_cell({ r: 1, c: C });
+            if (!ws[cellAddress]) continue;
+            if (!ws[cellAddress].s) ws[cellAddress].s = {};
+            ws[cellAddress].s = {
+                font: { 
+                    bold: true,
+                    color: { rgb: "FFFFFF" } // White text
+                },
+                fill: { 
+                    fgColor: { rgb: "4472C4" } // Blue background
+                },
+                alignment: { 
+                    horizontal: 'center',
+                    vertical: 'center'
+                }
+            };
+        }
 
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
 
+        // Create filename from list name (sanitize for file system)
+        const safeFileName = locationTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        
         // Write file with proper options for special characters
-        XLSX.writeFile(wb, 'inventory.xlsx', { 
+        XLSX.writeFile(wb, `${safeFileName}.xlsx`, { 
             bookType: 'xlsx',
             type: 'binary',
             cellStyles: true
