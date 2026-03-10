@@ -1,6 +1,9 @@
 // Equipment Inventory Manager with Advanced Features
+console.log('🚀 App.js loaded - Version 2.0');
+
 class InventoryManager {
     constructor() {
+        console.log('📦 InventoryManager constructor called');
         this.inventory = [];
         this.currentStep = 1;
         this.totalSteps = 4;
@@ -10,6 +13,7 @@ class InventoryManager {
         this.cameraStream = null;
         this.currentListName = '';
         this.savedLists = {};
+        this.hiddenColumns = []; // Track hidden default columns
         
         this.defaultColumns = [
             'serialNumber', 'equipment', 'location', 'swl', 'yom', 'condition',
@@ -193,6 +197,7 @@ class InventoryManager {
         this.currentListName = newListName;
         this.inventory = [];
         this.customColumns = [];
+        this.hiddenColumns = []; // Reset hidden columns for new list
         document.getElementById('locationTitle').value = newListName;
         
         // Save the new empty list
@@ -273,6 +278,7 @@ class InventoryManager {
             this.currentListName = listName;
             this.inventory = JSON.parse(JSON.stringify(list.inventory || [])); // Deep copy
             this.customColumns = JSON.parse(JSON.stringify(list.customColumns || [])); // Deep copy
+            this.hiddenColumns = JSON.parse(JSON.stringify(list.hiddenColumns || [])); // Load hidden columns
             document.getElementById('locationTitle').value = listName;
             console.log('Loaded inventory:', this.inventory.length, 'items');
             this.showMainApp();
@@ -368,23 +374,64 @@ class InventoryManager {
         const container = document.getElementById('customColumnsList');
         if (this.customColumns.length === 0) {
             container.innerHTML = '<p style="color: var(--text-secondary); font-style: italic;">No custom columns yet</p>';
-            return;
+        } else {
+            container.innerHTML = this.customColumns.map(col => `
+                <span class="custom-column-tag">
+                    ${col.label}
+                    <span class="remove-column" data-column-key="${col.key}">✕</span>
+                </span>
+            `).join('');
+            
+            // Add event listeners for remove buttons
+            container.querySelectorAll('.remove-column').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const columnKey = btn.getAttribute('data-column-key');
+                    this.removeCustomColumn(columnKey);
+                });
+            });
         }
-
-        container.innerHTML = this.customColumns.map(col => `
-            <span class="custom-column-tag">
-                ${col.label}
-                <span class="remove-column" data-column-key="${col.key}">✕</span>
-            </span>
-        `).join('');
         
-        // Add event listeners for remove buttons
-        container.querySelectorAll('.remove-column').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const columnKey = btn.getAttribute('data-column-key');
-                this.removeCustomColumn(columnKey);
+        // Render default columns with toggle
+        this.renderDefaultColumnsList();
+    }
+
+    renderDefaultColumnsList() {
+        const container = document.getElementById('defaultColumnsList');
+        container.innerHTML = this.defaultColumns.map(key => {
+            const isHidden = this.hiddenColumns.includes(key);
+            const label = this.columnLabels[key];
+            return `
+                <span class="column-tag ${isHidden ? 'column-hidden' : 'column-visible'}" 
+                      data-column-key="${key}" 
+                      style="cursor: pointer;"
+                      title="Click to ${isHidden ? 'show' : 'hide'}">
+                    ${label} ${isHidden ? '(hidden)' : ''}
+                </span>
+            `;
+        }).join('');
+        
+        // Add click handlers
+        container.querySelectorAll('.column-tag').forEach(tag => {
+            tag.addEventListener('click', () => {
+                const columnKey = tag.getAttribute('data-column-key');
+                this.toggleColumnVisibility(columnKey);
             });
         });
+    }
+
+    toggleColumnVisibility(columnKey) {
+        const index = this.hiddenColumns.indexOf(columnKey);
+        if (index > -1) {
+            // Show column
+            this.hiddenColumns.splice(index, 1);
+        } else {
+            // Hide column
+            this.hiddenColumns.push(columnKey);
+        }
+        
+        this.renderDefaultColumnsList();
+        this.saveToStorage();
+        this.renderTable();
     }
 
     renderCustomFieldsInForm() {
@@ -775,7 +822,14 @@ class InventoryManager {
         const wrapper = document.getElementById('tableWrapper');
         const dataToRender = data || this.inventory;
 
-        const allColumns = [...this.defaultColumns, ...this.customColumns.map(col => col.key)];
+        // Ensure hiddenColumns is initialized
+        if (!this.hiddenColumns) {
+            this.hiddenColumns = [];
+        }
+
+        // Filter out hidden columns
+        const visibleDefaultColumns = this.defaultColumns.filter(col => !this.hiddenColumns.includes(col));
+        const allColumns = [...visibleDefaultColumns, ...this.customColumns.map(col => col.key)];
 
         if (dataToRender.length === 0) {
             wrapper.innerHTML = `
@@ -1383,8 +1437,17 @@ class InventoryManager {
             return;
         }
 
-        const locationTitle = document.getElementById('locationTitle').value;
-        const allColumns = [...this.defaultColumns, ...this.customColumns.map(col => col.key)];
+        const locationTitle = document.getElementById('locationTitle').value || this.currentListName || 'Inventory';
+        
+        // Ensure hiddenColumns is initialized
+        if (!this.hiddenColumns) {
+            this.hiddenColumns = [];
+        }
+        
+        // Filter out hidden columns
+        const visibleDefaultColumns = this.defaultColumns.filter(col => !this.hiddenColumns.includes(col));
+        const allColumns = [...visibleDefaultColumns, ...this.customColumns.map(col => col.key)];
+        
         const headers = allColumns.map(key => {
             const customCol = this.customColumns.find(col => col.key === key);
             return customCol ? customCol.label : this.columnLabels[key];
@@ -1396,6 +1459,11 @@ class InventoryManager {
         this.inventory.forEach(item => {
             const row = allColumns.map(key => {
                 let value = item[key] || '';
+                
+                // Use N/A for empty cells
+                if (!value || value.trim() === '') {
+                    value = 'N/A';
+                }
                 
                 // Convert emoji symbols to text for better compatibility
                 if (key === 'pass') {
@@ -1426,7 +1494,16 @@ class InventoryManager {
         }
 
         const locationTitle = document.getElementById('locationTitle').value || this.currentListName || 'Inventory';
-        const allColumns = [...this.defaultColumns, ...this.customColumns.map(col => col.key)];
+        
+        // Ensure hiddenColumns is initialized
+        if (!this.hiddenColumns) {
+            this.hiddenColumns = [];
+        }
+        
+        // Filter out hidden columns
+        const visibleDefaultColumns = this.defaultColumns.filter(col => !this.hiddenColumns.includes(col));
+        const allColumns = [...visibleDefaultColumns, ...this.customColumns.map(col => col.key)];
+        
         const headers = allColumns.map(key => {
             const customCol = this.customColumns.find(col => col.key === key);
             return customCol ? customCol.label : this.columnLabels[key];
@@ -1436,6 +1513,11 @@ class InventoryManager {
         const data = this.inventory.map(item => 
             allColumns.map(key => {
                 let value = item[key] || '';
+                
+                // Use N/A for empty cells
+                if (!value || value.toString().trim() === '') {
+                    return 'N/A';
+                }
                 
                 // Convert emoji symbols to text for Excel compatibility
                 if (key === 'pass') {
@@ -1564,6 +1646,7 @@ class InventoryManager {
         const listData = {
             inventory: JSON.parse(JSON.stringify(this.inventory)), // Deep copy to prevent reference issues
             customColumns: JSON.parse(JSON.stringify(this.customColumns)),
+            hiddenColumns: JSON.parse(JSON.stringify(this.hiddenColumns)), // Save hidden columns
             lastModified: new Date().toISOString()
         };
         
@@ -1592,5 +1675,12 @@ class InventoryManager {
 // Initialize the app
 let manager;
 document.addEventListener('DOMContentLoaded', () => {
-    manager = new InventoryManager();
+    console.log('🎯 DOM Content Loaded - Initializing app...');
+    try {
+        manager = new InventoryManager();
+        console.log('✅ Manager initialized successfully');
+    } catch (error) {
+        console.error('❌ Error initializing manager:', error);
+        alert('Error loading app. Please refresh the page. Error: ' + error.message);
+    }
 });

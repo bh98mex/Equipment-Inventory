@@ -97,7 +97,6 @@ body {
 .card-icon {
     font-size: 64px;
     margin-bottom: 20px;
-    animation: bounce 2s infinite;
 }
 
 .landing-card h2 {
@@ -895,4 +894,28 @@ tbody tr:hover {
 
 .credits-footer a:hover {
     text-decoration: underline !important;
+}
+
+/* Column Visibility Toggle */
+.column-visible {
+    background: var(--bg-color);
+    border: 2px solid var(--primary-color);
+    color: var(--text-color);
+}
+
+.column-visible:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+.column-hidden {
+    background: #f3f4f6;
+    border: 2px solid #d1d5db;
+    color: #9ca3af;
+    opacity: 0.6;
+}
+
+.column-hidden:hover {
+    opacity: 1;
+    border-color: var(--primary-color);
 }
