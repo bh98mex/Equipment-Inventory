@@ -1487,7 +1487,7 @@ class InventoryManager {
         this.downloadFile(csv, `${safeFileName}.csv`, 'text/csv;charset=utf-8;');
     }
 
-    exportExcel() {
+    async exportExcel() {
         if (this.inventory.length === 0) {
             alert('No data to export');
             return;
@@ -1519,7 +1519,7 @@ class InventoryManager {
                     return 'N/A';
                 }
                 
-                // Convert emoji symbols to text for Excel compatibility
+                // Convert emoji symbols to text
                 if (key === 'pass') {
                     if (value.includes('✔') || value.includes('✓')) {
                         return 'PASS';
@@ -1530,7 +1530,7 @@ class InventoryManager {
                     }
                 }
                 
-                // Display YOM as just year in exports
+                // Display YOM as just year
                 if (key === 'yom' && value) {
                     const match = value.match(/^(\d{4})/);
                     if (match) {
@@ -1542,66 +1542,99 @@ class InventoryManager {
             })
         );
 
-        // Create workbook with formatting
-        const ws = XLSX.utils.aoa_to_sheet([[locationTitle], headers, ...data]);
-        
-        // Set column widths
-        const colWidths = headers.map(h => ({ wch: Math.max(h.length + 2, 12) }));
-        ws['!cols'] = colWidths;
-        
-        // Set row heights
-        ws['!rows'] = [];
-        ws['!rows'][0] = { hpt: 24 }; // Title row height
-        ws['!rows'][1] = { hpt: 20 }; // Header row height
-        
-        // Style the title row (Row 1) - BOLD and BLUE
-        const titleCell = 'A1';
-        if (!ws[titleCell].s) ws[titleCell].s = {};
-        ws[titleCell].s = {
-            font: { 
-                bold: true, 
-                sz: 16,
-                color: { rgb: "1F4E78" } // Dark blue color
-            },
-            alignment: { 
-                horizontal: 'left',
-                vertical: 'center'
-            }
+        // Create workbook using ExcelJS
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Inventory');
+
+        // Add title row
+        worksheet.addRow([locationTitle]);
+        worksheet.mergeCells(1, 1, 1, headers.length);
+        const titleRow = worksheet.getRow(1);
+        titleRow.height = 24;
+        titleRow.font = { bold: true, size: 14 };
+        titleRow.alignment = { vertical: 'middle', horizontal: 'center' }; // CENTERED
+        titleRow.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFD9D9D9' } // Light grey background
         };
+
+        // Add header row
+        const headerRow = worksheet.addRow(headers);
+        headerRow.height = 20;
+        headerRow.font = { bold: true, size: 12 }; // 12pt, bold
+        headerRow.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFD9D9D9' } // Light grey background
+        };
+        headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // Add data rows with alternating colors
+        data.forEach((rowData, index) => {
+            const row = worksheet.addRow(rowData);
+            row.font = { size: 11 }; // 11pt font for data
+            row.alignment = { vertical: 'middle', horizontal: 'center' };
+            
+            // Alternating row colors (light green for odd rows)
+            if (index % 2 === 0) {
+                row.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FFE2EFDA' } // Light green (like in your screenshot)
+                };
+            }
+        });
+
+        // Auto-fit column widths based on content + 2
+        worksheet.columns.forEach((column, colIndex) => {
+            let maxLength = 0;
+            
+            // Check title row (if not merged)
+            if (colIndex === 0) {
+                maxLength = Math.max(maxLength, locationTitle.length);
+            }
+            
+            // Check header
+            const header = headers[colIndex] || '';
+            maxLength = Math.max(maxLength, header.length);
+            
+            // Check all data rows
+            data.forEach(row => {
+                const cellValue = String(row[colIndex] || '');
+                maxLength = Math.max(maxLength, cellValue.length);
+            });
+            
+            // Set width to max length + 2
+            column.width = maxLength + 2;
+        });
+
+        // Apply borders to all cells (including first two rows)
+        worksheet.eachRow((row, rowNumber) => {
+            row.eachCell((cell) => {
+                cell.border = {
+                    top: { style: 'thin' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    right: { style: 'thin' }
+                };
+            });
+        });
+
+        // Generate Excel file
+        const buffer = await workbook.xlsx.writeBuffer();
         
-        // Style the header row (Row 2) - BOLD and DARK GREY background
-        const range = XLSX.utils.decode_range(ws['!ref']);
-        for (let C = range.s.c; C <= range.e.c; ++C) {
-            const cellAddress = XLSX.utils.encode_cell({ r: 1, c: C });
-            if (!ws[cellAddress]) continue;
-            if (!ws[cellAddress].s) ws[cellAddress].s = {};
-            ws[cellAddress].s = {
-                font: { 
-                    bold: true,
-                    color: { rgb: "FFFFFF" } // White text
-                },
-                fill: { 
-                    fgColor: { rgb: "4472C4" } // Blue background
-                },
-                alignment: { 
-                    horizontal: 'center',
-                    vertical: 'center'
-                }
-            };
-        }
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
-
-        // Create filename from list name (sanitize for file system)
+        // Create filename
         const safeFileName = locationTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
         
-        // Write file with proper options for special characters
-        XLSX.writeFile(wb, `${safeFileName}.xlsx`, { 
-            bookType: 'xlsx',
-            type: 'binary',
-            cellStyles: true
-        });
+        // Download file
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${safeFileName}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
     }
 
     exportPivotCSV() {
